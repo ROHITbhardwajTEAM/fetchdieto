@@ -23,13 +23,16 @@ export async function POST(request: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
+  type AuthUser = { id: string; email?: string; email_confirmed_at?: string }
+
   // Find the user by email
-  const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers()
+  const { data: listData, error: listError } = await adminClient.auth.admin.listUsers()
   if (listError) {
     return NextResponse.json({ error: listError.message }, { status: 500 })
   }
 
-  const user = users.find(u => u.email === email)
+  const users: AuthUser[] = listData?.users ?? []
+  const user = users.find((u: AuthUser) => u.email === (email as string))
   if (!user) {
     return NextResponse.json({ error: 'User not found in auth.users' }, { status: 404 })
   }

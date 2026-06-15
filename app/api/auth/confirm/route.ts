@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     // Auto-confirm the user's email using admin privileges
-    const { error } = await supabaseAdmin.auth.admin.updateUser(userId, {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       email_confirm: true,
     })
 

@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String   @id @default(uuid())
+  name           String?
+  email          String   @unique
+  weight         Float?
+  height         Float?
+  age            Int?
+  gender         String?
+  activity_level String?
+  goal           String?
+  protein_target Int?
+  carb_target    Int?
+  fat_target     Int?
+  calorie_target Int?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+
+  meals      Meal[]
+  daily_logs DailyLog[]
+  reminders  Reminder[]
+
+  @@map("users")
+}
+
+model Meal {
+  id           String   @id @default(uuid())
+  user_id      String
+  meal_name    String
+  time         String?
+  calories     Int?
+  protein      Float?
+  carbs        Float?
+  fat          Float?
+  is_completed Boolean  @default(false)
+  date         String   @default("")
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("meals")
+}
+
+model DailyLog {
+  id       String @id @default(uuid())
+  user_id  String
+  date     String
+  protein  Float  @default(0)
+  carbs    Float  @default(0)
+  fat      Float  @default(0)
+  calories Int    @default(0)
+  water_ml Int    @default(0)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, date])
+  @@map("daily_logs")
+}
+
+model Reminder {
+  id            String   @id @default(uuid())
+  user_id       String
+  title         String
+  reminder_time String
+  is_enabled    Boolean  @default(true)
+  created_at    DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}

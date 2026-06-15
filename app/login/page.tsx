@@ -55,9 +55,6 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',

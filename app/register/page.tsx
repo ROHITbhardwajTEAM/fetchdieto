@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { Mail, Lock, User, ChevronRight, ChevronLeft, Zap, Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
+import { Mail, Lock, User, ChevronRight, ChevronLeft, Eye, EyeOff } from 'lucide-react'
 
 type Step = 1 | 2 | 3
 
@@ -127,7 +128,6 @@ export default function RegisterPage() {
   if (emailSent) {
     return (
       <div style={{
-        minHeight: '100vh',
         minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
@@ -154,7 +154,7 @@ export default function RegisterPage() {
           <p style={{ color: 'var(--text-secondary)', fontSize: 15, marginBottom: 8 }}>
             We sent a confirmation link to:
           </p>
-          <p style={{ color: 'var(--purple-light)', fontSize: 15, fontWeight: 600, marginBottom: 24 }}>
+          <p style={{ color: '#E8742A', fontSize: 15, fontWeight: 600, marginBottom: 24 }}>
             {form.email}
           </p>
 
@@ -173,10 +173,10 @@ export default function RegisterPage() {
           <Link href="/login" style={{
             display: 'inline-block',
             padding: '11px 24px',
-            background: 'rgba(124,58,237,0.15)',
-            border: '1px solid rgba(124,58,237,0.35)',
+            background: 'rgba(232,116,42,0.12)',
+            border: '1px solid rgba(232,116,42,0.35)',
             borderRadius: 12,
-            color: 'var(--purple-light)',
+            color: '#E8742A',
             fontWeight: 600,
             fontSize: 14,
             textDecoration: 'none',
@@ -191,7 +191,6 @@ export default function RegisterPage() {
   // ─── REGISTRATION FORM ────────────────────────────────────
   return (
     <div style={{
-      minHeight: '100vh',
       minHeight: '100dvh',
       display: 'flex',
       alignItems: 'flex-start',
@@ -205,20 +204,16 @@ export default function RegisterPage() {
       <div style={{ width: '100%', maxWidth: 480 }} className="animate-fade-in">
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{
-            width: 48, height: 48,
-            background: 'linear-gradient(135deg, #7c3aed, #6366f1)',
-            borderRadius: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 10px',
-            boxShadow: '0 8px 32px rgba(124, 58, 237, 0.4)',
-          }}>
-            <Zap size={22} color="white" fill="white" />
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '0 auto 10px' }}>
+            <Image src="/logo.png" alt="FetchDieto" width={90} height={90}
+              style={{ borderRadius: 16, boxShadow: '0 6px 24px rgba(232,116,42,0.20)' }}
+              priority
+            />
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }} className="gradient-text">
             FetchDieto
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Start your health journey today</p>
+          <p style={{ color: '#6B6F8A', fontSize: 13 }}>Start your health journey today</p>
         </div>
 
         {/* Step indicator */}
@@ -227,17 +222,17 @@ export default function RegisterPage() {
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: s <= step ? 'linear-gradient(135deg, #7c3aed, #6366f1)' : 'rgba(255,255,255,0.06)',
-                border: s === step ? '2px solid #7c3aed' : '1px solid rgba(255,255,255,0.1)',
+                background: s <= step ? 'linear-gradient(135deg, #E8742A, #F5A623)' : '#F0EBE3',
+                border: s === step ? '2px solid #E8742A' : '1px solid #EDE4D8',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700,
-                color: s <= step ? 'white' : 'var(--text-muted)',
+                color: s <= step ? 'white' : '#A0A4BF',
                 transition: 'all 0.3s',
                 flexShrink: 0,
               }}>{s}</div>
               {s < 3 && <div style={{
                 width: 32, height: 2,
-                background: s < step ? 'var(--purple-primary)' : 'rgba(255,255,255,0.08)',
+                background: s < step ? '#E8742A' : '#EDE4D8',
                 borderRadius: 2, transition: 'all 0.3s',
               }} />}
             </div>
@@ -374,8 +369,8 @@ export default function RegisterPage() {
                       onClick={() => update('goal', opt.value)}
                       style={{
                         padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                        border: `1px solid ${form.goal === opt.value ? 'rgba(124,58,237,0.5)' : 'var(--border)'}`,
-                        background: form.goal === opt.value ? 'rgba(124,58,237,0.12)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${form.goal === opt.value ? 'rgba(232,116,42,0.45)' : '#EDE4D8'}`,
+                        background: form.goal === opt.value ? 'rgba(232,116,42,0.08)' : '#ffffff',
                         transition: 'all 0.2s',
                         WebkitTapHighlightColor: 'transparent',
                       }}
@@ -388,8 +383,8 @@ export default function RegisterPage() {
               </div>
 
               {/* Macro preview */}
-              <div style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 12, padding: 14 }}>
-                <p style={{ fontSize: 11, color: 'var(--purple-light)', fontWeight: 600, marginBottom: 10, letterSpacing: '0.5px' }}>📊 YOUR DAILY TARGETS</p>
+              <div style={{ background: 'rgba(232,116,42,0.06)', border: '1px solid rgba(232,116,42,0.18)', borderRadius: 12, padding: 14 }}>
+                <p style={{ fontSize: 11, color: '#E8742A', fontWeight: 600, marginBottom: 10, letterSpacing: '0.5px' }}>📊 YOUR DAILY TARGETS</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                   {[
                     { label: 'Calories', value: macros.calories, unit: 'kcal' },
@@ -398,9 +393,9 @@ export default function RegisterPage() {
                     { label: 'Fat', value: macros.fat, unit: 'g' },
                   ].map(m => (
                     <div key={m.label} style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--purple-light)' }}>{m.value}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{m.unit}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 1 }}>{m.label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#E8742A' }}>{m.value}</div>
+                      <div style={{ fontSize: 9, color: '#A0A4BF', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{m.unit}</div>
+                      <div style={{ fontSize: 10, color: '#6B6F8A', marginTop: 1 }}>{m.label}</div>
                     </div>
                   ))}
                 </div>
@@ -426,7 +421,7 @@ export default function RegisterPage() {
 
         <p style={{ textAlign: 'center', marginTop: 16, color: 'var(--text-secondary)', fontSize: 14, paddingBottom: 8 }}>
           Already have an account?{' '}
-          <Link href="/login" style={{ color: 'var(--purple-light)', fontWeight: 600, textDecoration: 'none' }}>
+          <Link href="/login" style={{ color: '#E8742A', fontWeight: 600, textDecoration: 'none' }}>
             Sign in
           </Link>
         </p>

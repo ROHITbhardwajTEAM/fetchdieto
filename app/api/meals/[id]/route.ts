@@ -7,7 +7,9 @@ async function syncDailyLog(userId: string, date: string) {
     where: { user_id: userId, date, is_completed: true },
   })
 
-  const totals = completedMeals.reduce(
+  type Totals = { calories: number; protein: number; carbs: number; fat: number }
+
+  const totals = completedMeals.reduce<Totals>(
     (acc, m) => ({
       calories: acc.calories + (m.calories || 0),
       protein:  acc.protein  + (m.protein  || 0),

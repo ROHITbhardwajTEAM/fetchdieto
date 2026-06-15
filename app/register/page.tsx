@@ -252,7 +252,7 @@ export default function RegisterPage() {
                   <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                   <input
                     id="reg-name" type="text" autoComplete="name" className="input-field"
-                    style={{ paddingLeft: 40 }} placeholder="Rohit Kumar"
+                    style={{ paddingLeft: 40 }} placeholder="Rohit Bhardwaj"
                     value={form.name} onChange={e => update('name', e.target.value)}
                   />
                 </div>

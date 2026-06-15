@@ -189,9 +189,24 @@ export default function LoginPage() {
             <button
               id="btn-email-login"
               type="submit"
-              className="btn-primary"
               disabled={loading}
-              style={{ marginTop: 4, opacity: loading ? 0.7 : 1, width: '100%' }}
+              style={{
+                marginTop: 8,
+                width: '100%',
+                display: 'block',
+                background: loading ? 'rgba(232,116,42,0.65)' : 'linear-gradient(135deg, #E8742A, #F59653)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                padding: '13px 20px',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 14px rgba(232,116,42,0.35)',
+                fontFamily: 'Inter, sans-serif',
+                letterSpacing: '0.3px',
+                transition: 'all 0.2s ease',
+              }}
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>

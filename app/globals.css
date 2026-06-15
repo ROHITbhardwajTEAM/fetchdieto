@@ -99,18 +99,21 @@ body {
 @layer components {
   /* ─── Primary button ───────────────────────────── */
   .btn-primary {
+    display: block;
+    width: 100%;
+    text-align: center;
     background: linear-gradient(135deg, #E8742A, #F59653) !important;
     color: white !important;
     border: none;
     border-radius: 10px;
-    padding: 9px 18px;
-    font-size: 13px;
+    padding: 11px 20px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: 0 3px 10px rgba(232,116,42,0.30);
     font-family: 'Inter', sans-serif;
-    white-space: nowrap;
+    letter-spacing: 0.2px;
   }
   .btn-primary:hover {
     transform: translateY(-1px);
@@ -120,12 +123,15 @@ body {
 
   /* ─── Secondary button ───────────────────────── */
   .btn-secondary {
+    display: block;
+    width: 100%;
+    text-align: center;
     background: #ffffff;
     color: #2D3561;
-    border: 1px solid #EDE4D8;
+    border: 1.5px solid #EDE4D8;
     border-radius: 10px;
-    padding: 9px 18px;
-    font-size: 13px;
+    padding: 11px 20px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;

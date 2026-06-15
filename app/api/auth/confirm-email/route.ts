@@ -1,13 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// This route uses the Supabase Admin API to confirm a user's email
-// Requires SUPABASE_SERVICE_ROLE_KEY in .env.local
 export async function POST(request: Request) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {
     return NextResponse.json(
-      { error: 'SUPABASE_SERVICE_ROLE_KEY not configured in .env.local' },
+      { error: 'SUPABASE_SERVICE_ROLE_KEY not configured' },
       { status: 500 }
     )
   }
@@ -17,6 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'email required' }, { status: 400 })
   }
 
+  // Create admin client inside handler — NOT at module level
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     serviceKey,

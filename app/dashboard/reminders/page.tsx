@@ -149,7 +149,7 @@ export default function RemindersPage() {
     const perm = await Notification.requestPermission()
     setNotifPermission(perm)
     if (perm === 'granted') {
-      toast.success('🔔 Notifications enabled! Alarms will fire even when your phone is locked.')
+      toast.success('🔔 Notifications enabled! Alarms will fire even on your lock screen.')
       // Immediately subscribe this device to Web Push
       if ('serviceWorker' in navigator && 'PushManager' in window && userId) {
         try {
@@ -168,7 +168,7 @@ export default function RemindersPage() {
               body: JSON.stringify({
                 userId,
                 subscription: sub.toJSON(),
-                tzOffsetMins: new Date().getTimezoneOffset(), // e.g. IST = -330
+                tzOffsetMins: new Date().getTimezoneOffset(),
               }),
             })
           }
@@ -176,6 +176,29 @@ export default function RemindersPage() {
       }
     } else {
       toast.error('Notifications blocked. Enable in browser settings.')
+    }
+  }
+
+  // Send a real server-side push to test lock-screen delivery
+  const testPushNotification = async () => {
+    if (!userId) return toast.error('Not logged in')
+    toast.loading('Sending test push…', { id: 'test-push' })
+    try {
+      const res = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json()
+      if (res.ok && data.sent > 0) {
+        toast.success('📲 Test push sent! Check your lock screen / notification tray.', { id: 'test-push', duration: 6000 })
+      } else if (data.error?.includes('No push subscriptions')) {
+        toast.error('No subscription found — try toggling notifications off then on again.', { id: 'test-push', duration: 6000 })
+      } else {
+        toast.error(`Push failed: ${data.error ?? 'Unknown error'}`, { id: 'test-push', duration: 6000 })
+      }
+    } catch {
+      toast.error('Network error while sending test push.', { id: 'test-push' })
     }
   }
 
@@ -305,7 +328,7 @@ export default function RemindersPage() {
         )}
       </div>
 
-      {/* Notification banner */}
+      {/* Notification banner — shown when permission NOT yet granted */}
       {notifPermission !== 'granted' && (
         <div className="glass-card animate-fade-in animate-fade-in-delay-1"
           style={{ padding: '14px 20px', marginBottom: 20, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.05)', overflow: 'hidden' }}>
@@ -313,11 +336,36 @@ export default function RemindersPage() {
             <Bell size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
             <div className="notif-banner-text">
               <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Enable push notifications</p>
-              <p style={{ color: '#6b7280', fontSize: 12 }}>Get alerted when your reminders fire</p>
+              <p style={{ color: '#6b7280', fontSize: 12 }}>Get alerted even when your phone is locked 🔒</p>
             </div>
             <button id="btn-enable-notifications" className="btn-primary" onClick={requestNotifications}
               style={{ fontSize: 13, flexShrink: 0, padding: '8px 16px' }}>
               Enable
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Push active banner — shown when permission IS granted, with test button */}
+      {notifPermission === 'granted' && (
+        <div className="glass-card animate-fade-in animate-fade-in-delay-1"
+          style={{ padding: '14px 20px', marginBottom: 20, border: '1px solid rgba(39,174,96,0.25)', background: 'rgba(39,174,96,0.05)', overflow: 'hidden' }}>
+          <div className="notif-banner">
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🔔</span>
+            <div className="notif-banner-text">
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Lock screen alarms active</p>
+              <p style={{ color: '#6b7280', fontSize: 12 }}>Your reminders will fire even when app is closed</p>
+            </div>
+            <button
+              id="btn-test-push"
+              onClick={testPushNotification}
+              style={{
+                fontSize: 12, flexShrink: 0, padding: '7px 12px', borderRadius: 8, border: 'none',
+                background: 'rgba(39,174,96,0.12)', color: '#219653', cursor: 'pointer',
+                fontWeight: 600, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+              }}
+            >
+              📲 Test Now
             </button>
           </div>
         </div>

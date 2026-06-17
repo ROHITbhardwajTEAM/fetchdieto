@@ -30,11 +30,20 @@ export default function RemindersPage() {
   const [form, setForm] = useState({ title: '', reminder_time: '' })
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
   const [alarmSound, setAlarmSound] = useState<string>('rising_beeps')
+  const [isMobile, setIsMobile] = useState<boolean>(false)
   const supabase = createClient()
 
   const loadReminders = useCallback(async (uid: string) => {
     const res = await fetch(`/api/reminders?userId=${uid}`)
     if (res.ok) setReminders(await res.json())
+  }, [])
+
+  // Detect mobile viewport — JS-driven so CSS cascade cannot interfere
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   useEffect(() => {
@@ -228,17 +237,19 @@ export default function RemindersPage() {
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#2D3561' }}>🔊 Alarm Sound</h2>
         <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 18 }}>Choose the sound that plays when a reminder fires.</p>
 
-        {/* ── MOBILE: dropdown + preview button ── */}
-        <div className="alarm-sound-mobile">
+        {/* ── JS-driven responsive: dropdown on mobile, grid on desktop ── */}
+        {isMobile ? (
+          /* MOBILE: dropdown + preview button */
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <select
               value={alarmSound}
               onChange={e => selectAlarmSound(e.target.value)}
               style={{
-                flex: 1, padding: '10px 14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                flex: 1, padding: '10px 14px', borderRadius: 12, fontSize: 16, fontWeight: 600,
                 border: '2px solid rgba(232,116,42,0.4)', background: '#FDFAF7',
                 color: '#2D3561', fontFamily: 'Inter, sans-serif', cursor: 'pointer',
-                appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23E8742A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none',
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23E8742A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
                 backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
                 paddingRight: 38,
               }}
@@ -258,40 +269,40 @@ export default function RemindersPage() {
               }}
             >▶</button>
           </div>
-        </div>
-
-        {/* ── DESKTOP: grid cards ── */}
-        <div className="alarm-sound-desktop" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-          {ALARM_SOUNDS.map(s => (
-            <div key={s.id}
-              onClick={() => selectAlarmSound(s.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
-                border: `2px solid ${alarmSound === s.id ? 'rgba(232,116,42,0.6)' : '#EDE4D8'}`,
-                background: alarmSound === s.id ? 'rgba(232,116,42,0.07)' : '#FDFAF7',
-              }}
-            >
-              <button
-                onClick={e => { e.stopPropagation(); previewSound(s.id) }}
-                title="Preview"
+        ) : (
+          /* DESKTOP: grid cards */
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {ALARM_SOUNDS.map(s => (
+              <div key={s.id}
+                onClick={() => selectAlarmSound(s.id)}
                 style={{
-                  width: 30, height: 30, borderRadius: 8, border: 'none', flexShrink: 0,
-                  background: alarmSound === s.id ? 'rgba(232,116,42,0.15)' : '#F0EBE3',
-                  color: alarmSound === s.id ? '#E8742A' : '#9ca3af',
-                  cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
+                  border: `2px solid ${alarmSound === s.id ? 'rgba(232,116,42,0.6)' : '#EDE4D8'}`,
+                  background: alarmSound === s.id ? 'rgba(232,116,42,0.07)' : '#FDFAF7',
                 }}
-              >▶</button>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: alarmSound === s.id ? '#E8742A' : '#2D3561' }}>{s.label}</div>
-                <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.desc}</div>
+              >
+                <button
+                  onClick={e => { e.stopPropagation(); previewSound(s.id) }}
+                  title="Preview"
+                  style={{
+                    width: 30, height: 30, borderRadius: 8, border: 'none', flexShrink: 0,
+                    background: alarmSound === s.id ? 'rgba(232,116,42,0.15)' : '#F0EBE3',
+                    color: alarmSound === s.id ? '#E8742A' : '#9ca3af',
+                    cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >▶</button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: alarmSound === s.id ? '#E8742A' : '#2D3561' }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.desc}</div>
+                </div>
+                {alarmSound === s.id && (
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8742A', flexShrink: 0 }} />
+                )}
               </div>
-              {alarmSound === s.id && (
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8742A', flexShrink: 0 }} />
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Notification banner */}

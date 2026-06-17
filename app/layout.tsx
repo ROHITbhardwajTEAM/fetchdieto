@@ -13,6 +13,9 @@ export const metadata: Metadata = {
     apple:   { url: '/logo.png', type: 'image/png' },
     shortcut: '/favicon.png',
   },
+  verification: {
+    google: 'TBEXI6mMuDzKmk8mGYXw4MmPZoYdUEuN8qHXbJ3AnzY',
+  },
 }
 
 export const viewport: Viewport = {

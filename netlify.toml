@@ -7,3 +7,8 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# ── Cron: fires server-side push notifications every minute ──────────
+[[crons]]
+  path     = "/api/cron/reminders?secret=fetchdieto-cron-2026"
+  schedule = "* * * * *"

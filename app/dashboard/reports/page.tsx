@@ -49,7 +49,7 @@ export default function ReportsPage() {
       days.map(async date => {
         const res = await fetch(`/api/daily-logs?userId=${uid}&date=${date}`)
         const data = res.ok ? await res.json() : {}
-        return { date: new Date(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }), calories: data.calories || 0, protein: data.protein || 0, carbs: data.carbs || 0, fat: data.fat || 0, water_ml: data.water_ml || 0 }
+        return { date: new Date(date).toLocaleDateString('en-IN', { cycleday: 'short', day: 'numeric' }), calories: data.calories || 0, protein: data.protein || 0, carbs: data.carbs || 0, fat: data.fat || 0, water_ml: data.water_ml || 0 }
       })
     )
     setLogs(results)
@@ -75,17 +75,17 @@ export default function ReportsPage() {
   return (
     <div style={{ maxWidth: 900 }}>
       <div className="animate-fade-in" style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 800, marginBottom: 4, color: '#2D3561' }}>Weekly Reports</h1>
+        <h1 style={{ fontSize: 'clamp(20px, 5vw, 26px)', fontWeight: 800, marginBottom: 4, color: '#2D3561' }}>Cyclic Reports</h1>
         <p style={{ color: '#6B6F8A', fontSize: 14 }}>Your nutrition trends for the past 7 days</p>
       </div>
 
       {/* Summary cards */}
       <div className="stat-grid animate-fade-in animate-fade-in-delay-1" style={{ marginBottom: 20 }}>
         {[
-          { label: 'Avg Daily Calories', value: avgCalories,                    unit: 'kcal/day',    color: '#E8742A', bg: 'rgba(232,116,42,0.08)'  },
-          { label: 'Avg Daily Protein',  value: `${avgProtein}g`,               unit: 'protein/day', color: '#9B59B6', bg: 'rgba(155,89,182,0.08)'  },
-          { label: 'Total Water',        value: `${(totalWater/1000).toFixed(1)}L`, unit: 'this week', color: '#2980B9', bg: 'rgba(41,128,185,0.08)' },
-          { label: 'Best Day',           value: bestDay?.date || '—',           unit: `${bestDay?.calories || 0} kcal`, color: '#27AE60', bg: 'rgba(39,174,96,0.08)' },
+          { label: 'Avg Daily Calories', value: avgCalories, unit: 'kcal/day', color: '#E8742A', bg: 'rgba(232,116,42,0.08)' },
+          { label: 'Avg Daily Protein', value: `${avgProtein}g`, unit: 'protein/day', color: '#9B59B6', bg: 'rgba(155,89,182,0.08)' },
+          { label: 'Total Water', value: `${(totalWater / 1000).toFixed(1)}L`, unit: 'this cycle', color: '#2980B9', bg: 'rgba(41,128,185,0.08)' },
+          { label: 'Best Day', value: bestDay?.date || '—', unit: `${bestDay?.calories || 0} kcal`, color: '#27AE60', bg: 'rgba(39,174,96,0.08)' },
         ].map(s => (
           <div key={s.label} className="glass-card" style={{ padding: '12px 14px', background: s.bg, border: `1px solid ${s.color}33` }}>
             <div style={{ fontSize: 'clamp(16px,4vw,22px)', fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 3 }}>{s.value}</div>
@@ -96,13 +96,13 @@ export default function ReportsPage() {
       </div>
 
       {/* Calorie trend line chart */}
-      <div className="glass-card animate-fade-in animate-fade-in-delay-2" style={{ padding: 'clamp(16px,4vw,28px)', marginBottom: 20 }}>
+      <div className="glass-card calorie-chart-card animate-fade-in animate-fade-in-delay-2" style={{ padding: 'clamp(16px,4vw,28px)', marginBottom: 20 }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: '#2D3561' }}>Calorie Trend</h2>
         <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={logs}>
+          <LineChart data={logs} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(45,53,97,0.08)" />
-            <XAxis dataKey="date" tick={{ fill: '#A0A4BF', fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: '#A0A4BF', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="date" tick={{ fill: '#A0A4BF', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: '#A0A4BF', fontSize: 11 }} axisLine={false} tickLine={false} width={38} />
             <Tooltip content={<CustomTooltip />} />
             {/* Main calorie line — orange */}
             <Line type="monotone" dataKey="calories" name="Calories" stroke="#E8742A" strokeWidth={3} dot={{ fill: '#E8742A', r: 5 }} activeDot={{ r: 8, fill: '#F5A623' }} />
@@ -125,8 +125,8 @@ export default function ReportsPage() {
               <Legend wrapperStyle={{ fontSize: 11, color: '#6B6F8A' }} />
               {/* Protein = purple, Carbs = gold, Fat = orange */}
               <Bar dataKey="protein" name="Protein (g)" fill="#9B59B6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="carbs"   name="Carbs (g)"   fill="#F5A623" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="fat"     name="Fat (g)"     fill="#E8742A" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="carbs" name="Carbs (g)" fill="#F5A623" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="fat" name="Fat (g)" fill="#E8742A" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -90,17 +90,14 @@ export default function MealsPage() {
   const completed = meals.filter(m => m.is_completed).length
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      {/* Header — stacks on mobile */}
-      <div className="animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 'clamp(20px,5vw,26px)', fontWeight: 800, marginBottom: 2 }}>Meals</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-            {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+    <div style={{ width: '100%' }}>
+      {/* Header — CSS Grid: title left, button right */}
+      <div className="page-header animate-fade-in">
+        <div className="page-header-text">
+          <h1>Meals</h1>
+          <p>{new Date().toLocaleDateString('en-IN', { cycleday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
-        <button id="btn-add-meal" className="btn-primary" onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', fontSize: 14, flexShrink: 0 }}>
+        <button id="btn-add-meal" className="btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={15} /> Add Meal
         </button>
       </div>
@@ -130,9 +127,11 @@ export default function MealsPage() {
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🍽️</div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 14, fontSize: 14 }}>No meals logged for today</p>
-            <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Plus size={15} /> Add your first meal
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button className="btn-primary" onClick={() => setShowModal(true)}>
+                <Plus size={15} /> Add your first meal
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -253,9 +252,9 @@ export default function MealsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Cancel</button>
-                <button id="btn-confirm-add-meal" className="btn-primary" style={{ flex: 2 }} onClick={addMeal}>Add Meal</button>
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button id="btn-confirm-add-meal" className="btn-primary" onClick={addMeal}>Add Meal</button>
               </div>
             </div>
           </div>

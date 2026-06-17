@@ -26,9 +26,10 @@ model User {
   created_at     DateTime @default(now())
   updated_at     DateTime @default(now()) @updatedAt
 
-  meals      Meal[]
-  daily_logs DailyLog[]
-  reminders  Reminder[]
+  meals             Meal[]
+  daily_logs        DailyLog[]
+  reminders         Reminder[]
+  push_subscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -78,4 +79,18 @@ model Reminder {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("reminders")
+}
+
+model PushSubscription {
+  id             String   @id @default(uuid())
+  user_id        String
+  endpoint       String   @unique
+  p256dh         String
+  auth           String
+  tz_offset_mins Int      @default(0)  // UTC offset in minutes (e.g. IST = -330 from getTimezoneOffset)
+  created_at     DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }

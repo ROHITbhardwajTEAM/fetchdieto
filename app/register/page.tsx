@@ -335,9 +335,9 @@ export default function RegisterPage() {
                 <select id="reg-activity" className="input-field" value={form.activity_level}
                   onChange={e => update('activity_level', e.target.value)} style={{ cursor: 'pointer' }}>
                   <option value="sedentary">Sedentary (desk job)</option>
-                  <option value="light">Light (1-3x/week)</option>
-                  <option value="moderate">Moderate (3-5x/week)</option>
-                  <option value="active">Active (6-7x/week)</option>
+                  <option value="light">Light (1-3x/cycle)</option>
+                  <option value="moderate">Moderate (3-5x/cycle)</option>
+                  <option value="active">Active (6-7x/cycle)</option>
                   <option value="very_active">Very Active (2x/day)</option>
                 </select>
               </div>

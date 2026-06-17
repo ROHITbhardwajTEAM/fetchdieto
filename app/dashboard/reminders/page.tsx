@@ -34,28 +34,40 @@ export default function RemindersPage() {
     }
   }, [supabase, loadReminders])
 
-  // Check reminders every minute
-  useEffect(() => {
-    const check = () => {
-      const now = new Date()
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-      reminders.filter(r => r.is_enabled && r.reminder_time === currentTime).forEach(r => {
-        toast(`🔔 ${r.title}`, { duration: 8000 })
-        if (notifPermission === 'granted') {
-          new Notification('FetchDieto Reminder', { body: r.title, icon: '/favicon.ico' })
-        }
-      })
-    }
-    const interval = setInterval(check, 60000)
-    return () => clearInterval(interval)
-  }, [reminders, notifPermission])
+
 
   const requestNotifications = async () => {
-    if ('Notification' in window) {
-      const perm = await Notification.requestPermission()
-      setNotifPermission(perm)
-      if (perm === 'granted') toast.success('🔔 Notifications enabled!')
-      else toast.error('Notifications blocked. Enable in browser settings.')
+    if (!('Notification' in window)) return
+    const perm = await Notification.requestPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') {
+      toast.success('🔔 Notifications enabled! Alarms will fire even when your phone is locked.')
+      // Immediately subscribe this device to Web Push
+      if ('serviceWorker' in navigator && 'PushManager' in window && userId) {
+        try {
+          const reg = await navigator.serviceWorker.ready
+          const vapidKey = process.env.NEXT_PUBLIC_VAPID_KEY
+          if (vapidKey) {
+            const existing = await reg.pushManager.getSubscription()
+            const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4)
+            const b64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+            const raw = window.atob(b64)
+            const key = new Uint8Array([...raw].map(c => c.charCodeAt(0)))
+            const sub = existing ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                subscription: sub.toJSON(),
+                tzOffsetMins: new Date().getTimezoneOffset(), // e.g. IST = -330
+              }),
+            })
+          }
+        } catch { /* ignore */ }
+      }
+    } else {
+      toast.error('Notifications blocked. Enable in browser settings.')
     }
   }
 
@@ -100,30 +112,30 @@ export default function RemindersPage() {
   ]
 
   return (
-    <div style={{ maxWidth: 700 }}>
-      <div className="animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, color: '#2D3561' }}>Reminders</h1>
-          <p style={{ color: '#6B6F8A', fontSize: 14 }}>Never miss a meal or workout</p>
+    <div style={{ width: '100%' }}>
+      {/* Header — CSS Grid: title left, button right */}
+      <div className="page-header animate-fade-in">
+        <div className="page-header-text">
+          <h1>Reminders</h1>
+          <p>Never miss a meal or workout</p>
         </div>
-        <button id="btn-add-reminder" className="btn-primary" onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button id="btn-add-reminder" className="btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={16} /> Add Reminder
         </button>
       </div>
 
       {/* Notification banner */}
       {notifPermission !== 'granted' && (
-        <div className="glass-card animate-fade-in animate-fade-in-delay-1" style={{ padding: 16, marginBottom: 24, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Bell size={20} color="#f59e0b" />
-              <div>
-                <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Enable push notifications</p>
-                <p style={{ color: '#6b7280', fontSize: 12 }}>Get alerted when your reminders fire</p>
-              </div>
+        <div className="glass-card animate-fade-in animate-fade-in-delay-1"
+          style={{ padding: '14px 20px', marginBottom: 20, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.05)', overflow: 'hidden' }}>
+          <div className="notif-banner">
+            <Bell size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
+            <div className="notif-banner-text">
+              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Enable push notifications</p>
+              <p style={{ color: '#6b7280', fontSize: 12 }}>Get alerted when your reminders fire</p>
             </div>
-            <button id="btn-enable-notifications" className="btn-primary" onClick={requestNotifications} style={{ whiteSpace: 'nowrap', padding: '10px 18px', fontSize: 13 }}>
+            <button id="btn-enable-notifications" className="btn-primary" onClick={requestNotifications}
+              style={{ fontSize: 13, flexShrink: 0, padding: '8px 16px' }}>
               Enable
             </button>
           </div>
@@ -131,7 +143,7 @@ export default function RemindersPage() {
       )}
 
       {/* Reminders list */}
-      <div className="glass-card animate-fade-in animate-fade-in-delay-2" style={{ padding: 28 }}>
+      <div className="glass-card reminders-list-card animate-fade-in animate-fade-in-delay-2" style={{ padding: 28 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, color: '#2D3561' }}>
           Active Reminders <span style={{ fontSize: 13, color: '#A0A4BF', fontWeight: 400 }}>({reminders.filter(r => r.is_enabled).length} active)</span>
         </h2>
@@ -140,33 +152,35 @@ export default function RemindersPage() {
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>⏰</div>
             <p style={{ color: '#6b7280', marginBottom: 16 }}>No reminders set yet</p>
-            <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Plus size={16} /> Set your first reminder
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button className="btn-primary" onClick={() => setShowModal(true)}>
+                <Plus size={16} /> Set your first reminder
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {reminders.map(r => (
-              <div key={r.id} style={{
+              <div key={r.id} className="reminder-card" style={{
                 display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px',
                 borderRadius: 12,
                 border: `1px solid ${r.is_enabled ? 'rgba(232,116,42,0.25)' : '#EDE4D8'}`,
                 background: r.is_enabled ? 'rgba(232,116,42,0.05)' : '#FDFAF7',
                 transition: 'all 0.2s',
               }}>
-                <div style={{ width: 42, height: 42, borderRadius: 11, background: r.is_enabled ? 'rgba(232,116,42,0.12)' : '#F0EBE3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div className="reminder-icon" style={{ width: 42, height: 42, borderRadius: 11, background: r.is_enabled ? 'rgba(232,116,42,0.12)' : '#F0EBE3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Clock size={19} color={r.is_enabled ? '#E8742A' : '#A0A4BF'} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: r.is_enabled ? '#2D3561' : '#A0A4BF' }}>{r.title}</div>
-                  <div style={{ fontSize: 12, color: '#6B6F8A', marginTop: 2 }}>Daily at {r.reminder_time}</div>
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div className="reminder-title" style={{ fontWeight: 600, fontSize: 14, color: r.is_enabled ? '#2D3561' : '#A0A4BF', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</div>
+                  <div className="reminder-sub" style={{ fontSize: 12, color: '#6B6F8A', marginTop: 2 }}>Daily at {r.reminder_time}</div>
                 </div>
-                <label className="toggle">
+                <label className="toggle" style={{ flexShrink: 0 }}>
                   <input type="checkbox" checked={r.is_enabled} onChange={() => toggleReminder(r)} />
                   <span className="toggle-slider" />
                 </label>
                 <button onClick={() => deleteReminder(r.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 8, borderRadius: 8, transition: 'all 0.2s' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 8, borderRadius: 8, transition: 'all 0.2s', flexShrink: 0 }}
                   onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#ef4444' }}
                   onMouseOut={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9ca3af' }}>
                   <Trash2 size={16} />
@@ -206,9 +220,9 @@ export default function RemindersPage() {
                 <label className="input-label">Time (daily)</label>
                 <input id="reminder-time" type="time" className="input-field" value={form.reminder_time} onChange={e => setForm(f => ({ ...f, reminder_time: e.target.value }))} />
               </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Cancel</button>
-                <button id="btn-confirm-add-reminder" className="btn-primary" style={{ flex: 2 }} onClick={addReminder}>Set Reminder</button>
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button id="btn-confirm-add-reminder" className="btn-primary" onClick={addReminder}>Set Reminder</button>
               </div>
             </div>
           </div>

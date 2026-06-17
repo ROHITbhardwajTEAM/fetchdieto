@@ -172,12 +172,12 @@ export default function DashboardPage() {
   // ── Derive calorie + macro totals from COMPLETED meals only ──────────
   const completedMeals = meals.filter(m => m.is_completed)
   const consumedCalories = completedMeals.reduce((s, m) => s + (m.calories || 0), 0)
-  const consumedProtein  = completedMeals.reduce((s, m) => s + (m.protein  || 0), 0)
-  const consumedCarbs    = completedMeals.reduce((s, m) => s + (m.carbs    || 0), 0)
-  const consumedFat      = completedMeals.reduce((s, m) => s + (m.fat      || 0), 0)
+  const consumedProtein = completedMeals.reduce((s, m) => s + (m.protein || 0), 0)
+  const consumedCarbs = completedMeals.reduce((s, m) => s + (m.carbs || 0), 0)
+  const consumedFat = completedMeals.reduce((s, m) => s + (m.fat || 0), 0)
 
   const calorieTarget = user?.calorie_target || 2000
-  const remaining     = calorieTarget - consumedCalories
+  const remaining = calorieTarget - consumedCalories
 
   if (loading) {
     return (
@@ -205,17 +205,17 @@ export default function DashboardPage() {
           {greeting()}, <span className="gradient-text">{user?.name?.split(' ')[0] || 'there'}</span> 👋
         </h1>
         <p style={{ color: '#6b7280', fontSize: 'clamp(13px, 3vw, 15px)' }}>
-          {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
+          {new Date().toLocaleDateString('en-IN', { cycleday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
       {/* ── Top stats grid ──────────────────────────── */}
       <div className="stat-grid animate-fade-in animate-fade-in-delay-1" style={{ marginBottom: 16 }}>
         {[
-          { label: 'Calories Left',  value: remaining > 0 ? remaining : 0,                    unit: 'kcal',        icon: <Flame size={18} color="#E8742A" />,    color: '#E8742A', glow: 'rgba(232,116,42,0.10)'   },
-          { label: 'Total Calories', value: consumedCalories,                                   unit: 'consumed',    icon: <Target size={18} color="#2D3561" />,   color: '#2D3561', glow: 'rgba(45,53,97,0.08)'     },
-          { label: 'Daily Goal',     value: calorieTarget,                                      unit: 'kcal target', icon: <TrendingUp size={18} color="#27AE60" />, color: '#27AE60', glow: 'rgba(39,174,96,0.10)'    },
-          { label: 'Water',          value: `${(log.water_ml / 1000).toFixed(1)}`,              unit: 'L today',     icon: <Droplets size={18} color="#2980B9" />,  color: '#2980B9', glow: 'rgba(41,128,185,0.10)'   },
+          { label: 'Calories Left', value: remaining > 0 ? remaining : 0, unit: 'kcal', icon: <Flame size={18} color="#E8742A" />, color: '#E8742A', glow: 'rgba(232,116,42,0.10)' },
+          { label: 'Total Calories', value: consumedCalories, unit: 'consumed', icon: <Target size={18} color="#2D3561" />, color: '#2D3561', glow: 'rgba(45,53,97,0.08)' },
+          { label: 'Daily Goal', value: calorieTarget, unit: 'kcal target', icon: <TrendingUp size={18} color="#27AE60" />, color: '#27AE60', glow: 'rgba(39,174,96,0.10)' },
+          { label: 'Water', value: `${(log.water_ml / 1000).toFixed(1)}`, unit: 'L today', icon: <Droplets size={18} color="#2980B9" />, color: '#2980B9', glow: 'rgba(41,128,185,0.10)' },
         ].map(stat => (
           <div key={stat.label} className="glass-card" style={{ padding: '14px 16px' }}>
             <div style={{
@@ -259,9 +259,9 @@ export default function DashboardPage() {
         <div className="glass-card" style={{ padding: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: '#1e1f2e' }}>Macronutrients</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <MacroBar label="Protein"       value={consumedProtein} target={user?.protein_target || 150} color="linear-gradient(90deg, #9B59B6, #B47CC8)" />
-            <MacroBar label="Carbohydrates" value={consumedCarbs}   target={user?.carb_target   || 250} color="linear-gradient(90deg, #F5A623, #F8C46A)" />
-            <MacroBar label="Fat"           value={consumedFat}     target={user?.fat_target    || 65}  color="linear-gradient(90deg, #E8742A, #F59653)" />
+            <MacroBar label="Protein" value={consumedProtein} target={user?.protein_target || 150} color="linear-gradient(90deg, #9B59B6, #B47CC8)" />
+            <MacroBar label="Carbohydrates" value={consumedCarbs} target={user?.carb_target || 250} color="linear-gradient(90deg, #F5A623, #F8C46A)" />
+            <MacroBar label="Fat" value={consumedFat} target={user?.fat_target || 65} color="linear-gradient(90deg, #E8742A, #F59653)" />
           </div>
           <div style={{ marginTop: 20, padding: 12, background: '#f9faff', borderRadius: 10, border: '1px solid #e8eaf0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -401,10 +401,10 @@ function UtensilsCrossed({ size, style }: { size: number; style?: React.CSSPrope
   return (
     <svg width={size} height={size} style={style} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"/>
-      <path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"/>
-      <path d="m2.1 21.8 6.4-6.3"/>
-      <path d="m19 5-7 7"/>
+      <path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8" />
+      <path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7" />
+      <path d="m2.1 21.8 6.4-6.3" />
+      <path d="m19 5-7 7" />
     </svg>
   )
 }

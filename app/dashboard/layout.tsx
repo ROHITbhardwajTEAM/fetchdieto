@@ -110,29 +110,118 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const AudioCtx = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
       const ctx = new AudioCtx()
+      const soundId = localStorage.getItem('fetchdieto_alarm_sound') ?? 'rising_beeps'
 
-      // 4 rising beeps: each beep is 0.18s, separated by 0.22s gaps
-      const beeps = [660, 770, 880, 1100]
-      beeps.forEach((freq, i) => {
-        const osc  = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
+      if (soundId === 'rising_beeps') {
+        // 4 rising beeps
+        const beeps = [660, 770, 880, 1100]
+        beeps.forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.38)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.38)
+          gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + i * 0.38 + 0.04)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.38 + 0.28)
+          osc.start(ctx.currentTime + i * 0.38); osc.stop(ctx.currentTime + i * 0.38 + 0.30)
+        })
+        setTimeout(() => ctx.close(), 1920)
 
+      } else if (soundId === 'gentle_chime') {
+        // Soft descending chime tones
+        const tones = [1046, 880, 784, 659]
+        tones.forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.45)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.45)
+          gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.45 + 0.05)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.45 + 0.40)
+          osc.start(ctx.currentTime + i * 0.45); osc.stop(ctx.currentTime + i * 0.45 + 0.42)
+        })
+        setTimeout(() => ctx.close(), 2200)
+
+      } else if (soundId === 'alert_buzz') {
+        // Triple square-wave buzz
+        [0, 0.28, 0.56].forEach(t => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'square'
+          osc.frequency.setValueAtTime(440, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.25, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.18)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.20)
+        })
+        setTimeout(() => ctx.close(), 900)
+
+      } else if (soundId === 'melody') {
+        // Short happy melody: C E G A G E C
+        const notes = [523, 659, 784, 880, 784, 659, 523]
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'triangle'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18)
+          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.03)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.16)
+          osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.17)
+        })
+        setTimeout(() => ctx.close(), 1600)
+
+      } else if (soundId === 'water_drop') {
+        // Single soft pluck
+        const osc = ctx.createOscillator(); const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
         osc.type = 'sine'
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.38)
+        osc.frequency.setValueAtTime(1200, ctx.currentTime)
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.35)
+        gain.gain.setValueAtTime(0.5, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.42)
+        setTimeout(() => ctx.close(), 600)
 
-        // Envelope: fast attack, smooth decay
-        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.38)
-        gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + i * 0.38 + 0.04)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.38 + 0.28)
+      } else if (soundId === 'classic_bell') {
+        // Bell: fundamental + harmonics
+        [[440, 0.5], [880, 0.3], [1320, 0.15]].forEach(([freq, vol]) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime)
+          gain.gain.setValueAtTime(vol as number, ctx.currentTime)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5)
+          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.52)
+        })
+        setTimeout(() => ctx.close(), 1800)
 
-        osc.start(ctx.currentTime + i * 0.38)
-        osc.stop(ctx.currentTime + i * 0.38 + 0.30)
-      })
+      } else if (soundId === 'digital_pulse') {
+        // Fast sawtooth pulses
+        [0, 0.15, 0.30, 0.45, 0.60].forEach(t => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'sawtooth'
+          osc.frequency.setValueAtTime(660, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.2, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.09)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.10)
+        })
+        setTimeout(() => ctx.close(), 900)
 
-      // Close the context after the last beep
-      setTimeout(() => ctx.close(), beeps.length * 380 + 400)
+      } else if (soundId === 'soft_ping') {
+        // Two gentle sine pings
+        [0, 0.5].forEach((t, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination)
+          osc.type = 'sine'
+          osc.frequency.setValueAtTime(i === 0 ? 880 : 1046, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.4, ctx.currentTime + t)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.45)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.47)
+        })
+        setTimeout(() => ctx.close(), 1200)
+      }
+
     } catch { /* audio not supported */ }
   }
 

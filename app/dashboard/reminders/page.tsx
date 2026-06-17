@@ -12,12 +12,24 @@ interface Reminder {
   is_enabled: boolean
 }
 
+const ALARM_SOUNDS = [
+  { id: 'rising_beeps',  label: '🔔 Rising Beeps',   desc: '4 ascending tones' },
+  { id: 'gentle_chime', label: '🎵 Gentle Chime',    desc: 'Soft descending chime' },
+  { id: 'alert_buzz',   label: '🚨 Alert Buzz',      desc: 'Triple square buzz' },
+  { id: 'melody',       label: '🎶 Melody',           desc: 'Short happy tune' },
+  { id: 'water_drop',   label: '💧 Water Drop',      desc: 'Single pluck drop' },
+  { id: 'classic_bell', label: '🔊 Classic Bell',    desc: 'Bell with harmonics' },
+  { id: 'digital_pulse',label: '⚡ Digital Pulse',   desc: 'Fast sawtooth pulses' },
+  { id: 'soft_ping',    label: '🔵 Soft Ping',       desc: 'Two gentle pings' },
+]
+
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', reminder_time: '' })
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
+  const [alarmSound, setAlarmSound] = useState<string>('rising_beeps')
   const supabase = createClient()
 
   const loadReminders = useCallback(async (uid: string) => {
@@ -32,10 +44,97 @@ export default function RemindersPage() {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotifPermission(Notification.permission)
     }
+    // Load saved alarm sound preference
+    const saved = localStorage.getItem('fetchdieto_alarm_sound')
+    if (saved) setAlarmSound(saved)
   }, [supabase, loadReminders])
 
 
+  const selectAlarmSound = (id: string) => {
+    setAlarmSound(id)
+    localStorage.setItem('fetchdieto_alarm_sound', id)
+  }
 
+  // Preview the alarm sound in-browser
+  const previewSound = (soundId: string) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
+      const ctx = new AudioCtx()
+      if (soundId === 'rising_beeps') {
+        [660, 770, 880, 1100].forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.38)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.38)
+          gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + i * 0.38 + 0.04)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.38 + 0.28)
+          osc.start(ctx.currentTime + i * 0.38); osc.stop(ctx.currentTime + i * 0.38 + 0.30)
+        }); setTimeout(() => ctx.close(), 1920)
+      } else if (soundId === 'gentle_chime') {
+        [1046, 880, 784, 659].forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.45)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.45)
+          gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.45 + 0.05)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.45 + 0.40)
+          osc.start(ctx.currentTime + i * 0.45); osc.stop(ctx.currentTime + i * 0.45 + 0.42)
+        }); setTimeout(() => ctx.close(), 2200)
+      } else if (soundId === 'alert_buzz') {
+        [0, 0.28, 0.56].forEach(t => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'square'
+          osc.frequency.setValueAtTime(440, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.25, ctx.currentTime + t); gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.18)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.20)
+        }); setTimeout(() => ctx.close(), 900)
+      } else if (soundId === 'melody') {
+        [523, 659, 784, 880, 784, 659, 523].forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'triangle'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18)
+          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18)
+          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.03)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.16)
+          osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.17)
+        }); setTimeout(() => ctx.close(), 1600)
+      } else if (soundId === 'water_drop') {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
+        osc.frequency.setValueAtTime(1200, ctx.currentTime)
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.35)
+        gain.gain.setValueAtTime(0.5, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.42); setTimeout(() => ctx.close(), 600)
+      } else if (soundId === 'classic_bell') {
+        [[440, 0.5], [880, 0.3], [1320, 0.15]].forEach(([freq, vol]) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
+          osc.frequency.setValueAtTime(freq, ctx.currentTime)
+          gain.gain.setValueAtTime(vol as number, ctx.currentTime)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5)
+          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.52)
+        }); setTimeout(() => ctx.close(), 1800)
+      } else if (soundId === 'digital_pulse') {
+        [0, 0.15, 0.30, 0.45, 0.60].forEach(t => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth'
+          osc.frequency.setValueAtTime(660, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.2, ctx.currentTime + t); gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.09)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.10)
+        }); setTimeout(() => ctx.close(), 900)
+      } else if (soundId === 'soft_ping') {
+        [0, 0.5].forEach((t, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain()
+          osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
+          osc.frequency.setValueAtTime(i === 0 ? 880 : 1046, ctx.currentTime + t)
+          gain.gain.setValueAtTime(0.4, ctx.currentTime + t)
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.45)
+          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.47)
+        }); setTimeout(() => ctx.close(), 1200)
+      }
+    } catch { /* ignore */ }
+  }
   const requestNotifications = async () => {
     if (!('Notification' in window)) return
     const perm = await Notification.requestPermission()
@@ -122,6 +221,77 @@ export default function RemindersPage() {
         <button id="btn-add-reminder" className="btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={16} /> Add Reminder
         </button>
+      </div>
+
+      {/* ── Alarm Sound Selector Card ── */}
+      <div className="glass-card animate-fade-in animate-fade-in-delay-1" style={{ padding: 28, marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#2D3561' }}>🔊 Alarm Sound</h2>
+        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 18 }}>Choose the sound that plays when a reminder fires.</p>
+
+        {/* ── MOBILE: dropdown + preview button ── */}
+        <div className="alarm-sound-mobile">
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <select
+              value={alarmSound}
+              onChange={e => selectAlarmSound(e.target.value)}
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                border: '2px solid rgba(232,116,42,0.4)', background: '#FDFAF7',
+                color: '#2D3561', fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+                appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23E8742A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
+                paddingRight: 38,
+              }}
+            >
+              {ALARM_SOUNDS.map(s => (
+                <option key={s.id} value={s.id}>{s.label} — {s.desc}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => previewSound(alarmSound)}
+              title="Preview selected sound"
+              style={{
+                width: 44, height: 44, borderRadius: 12, border: 'none', flexShrink: 0,
+                background: 'rgba(232,116,42,0.12)', color: '#E8742A',
+                cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700,
+              }}
+            >▶</button>
+          </div>
+        </div>
+
+        {/* ── DESKTOP: grid cards ── */}
+        <div className="alarm-sound-desktop" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {ALARM_SOUNDS.map(s => (
+            <div key={s.id}
+              onClick={() => selectAlarmSound(s.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
+                border: `2px solid ${alarmSound === s.id ? 'rgba(232,116,42,0.6)' : '#EDE4D8'}`,
+                background: alarmSound === s.id ? 'rgba(232,116,42,0.07)' : '#FDFAF7',
+              }}
+            >
+              <button
+                onClick={e => { e.stopPropagation(); previewSound(s.id) }}
+                title="Preview"
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: 'none', flexShrink: 0,
+                  background: alarmSound === s.id ? 'rgba(232,116,42,0.15)' : '#F0EBE3',
+                  color: alarmSound === s.id ? '#E8742A' : '#9ca3af',
+                  cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >▶</button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: alarmSound === s.id ? '#E8742A' : '#2D3561' }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.desc}</div>
+              </div>
+              {alarmSound === s.id && (
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8742A', flexShrink: 0 }} />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Notification banner */}

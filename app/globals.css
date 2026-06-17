@@ -587,3 +587,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
     padding: 12px 10px !important;
   }
 }
+
+/* ── Alarm Sound Selector — responsive layout ───────── */
+/* Desktop: show grid cards, hide dropdown */
+.alarm-sound-mobile  { display: none; }
+.alarm-sound-desktop { display: grid; }
+
+/* Mobile ≤ 768px: show dropdown, hide grid cards */
+@media (max-width: 768px) {
+  .alarm-sound-mobile  { display: block; }
+  .alarm-sound-desktop { display: none; }
+}

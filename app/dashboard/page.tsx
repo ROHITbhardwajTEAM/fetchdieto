@@ -205,7 +205,7 @@ export default function DashboardPage() {
           {greeting()}, <span className="gradient-text">{user?.name?.split(' ')[0] || 'there'}</span> 👋
         </h1>
         <p style={{ color: '#6b7280', fontSize: 'clamp(13px, 3vw, 15px)' }}>
-          {new Date().toLocaleDateString('en-IN', { cycleday: 'long', month: 'long', day: 'numeric' })}
+          {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </div>
 

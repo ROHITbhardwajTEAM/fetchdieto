@@ -95,7 +95,7 @@ export default function MealsPage() {
       <div className="page-header animate-fade-in">
         <div className="page-header-text">
           <h1>Meals</h1>
-          <p>{new Date().toLocaleDateString('en-IN', { cycleday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p>{new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
         <button id="btn-add-meal" className="btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={15} /> Add Meal

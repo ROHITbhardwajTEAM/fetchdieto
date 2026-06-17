@@ -49,7 +49,7 @@ export default function ReportsPage() {
       days.map(async date => {
         const res = await fetch(`/api/daily-logs?userId=${uid}&date=${date}`)
         const data = res.ok ? await res.json() : {}
-        return { date: new Date(date).toLocaleDateString('en-IN', { cycleday: 'short', day: 'numeric' }), calories: data.calories || 0, protein: data.protein || 0, carbs: data.carbs || 0, fat: data.fat || 0, water_ml: data.water_ml || 0 }
+        return { date: new Date(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }), calories: data.calories || 0, protein: data.protein || 0, carbs: data.carbs || 0, fat: data.fat || 0, water_ml: data.water_ml || 0 }
       })
     )
     setLogs(results)

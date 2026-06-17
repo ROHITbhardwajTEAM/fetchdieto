@@ -240,18 +240,18 @@ export default function RemindersPage() {
         {/* ── JS-driven responsive: dropdown on mobile, grid on desktop ── */}
         {isMobile ? (
           /* MOBILE: dropdown + preview button */
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
             <select
               value={alarmSound}
               onChange={e => selectAlarmSound(e.target.value)}
               style={{
-                flex: 1, padding: '10px 14px', borderRadius: 12, fontSize: 16, fontWeight: 600,
+                flex: 1, minWidth: 0, padding: '10px 38px 10px 12px', borderRadius: 12, fontSize: 15, fontWeight: 600,
                 border: '2px solid rgba(232,116,42,0.4)', background: '#FDFAF7',
                 color: '#2D3561', fontFamily: 'Inter, sans-serif', cursor: 'pointer',
                 WebkitAppearance: 'none', MozAppearance: 'none', appearance: 'none',
                 backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23E8742A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
-                paddingRight: 38,
+                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}
             >
               {ALARM_SOUNDS.map(s => (
@@ -262,7 +262,7 @@ export default function RemindersPage() {
               onClick={() => previewSound(alarmSound)}
               title="Preview selected sound"
               style={{
-                width: 44, height: 44, borderRadius: 12, border: 'none', flexShrink: 0,
+                width: 42, height: 42, minWidth: 42, borderRadius: 12, border: 'none', flexShrink: 0,
                 background: 'rgba(232,116,42,0.12)', color: '#E8742A',
                 cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700,

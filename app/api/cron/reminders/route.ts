@@ -1,18 +1,11 @@
-// GET|POST /api/cron/reminders
-// Called every minute by Netlify Cron (netlify.toml) or cron-job.org in production.
-// For each push subscription, computes the user's LOCAL time from their stored tz_offset_mins,
-// then checks reminders matching that local time and sends Web Push to their device.
-// Works even when phone is locked or app is closed.
-
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import webpush from 'web-push'
 
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.NEXT_PUBLIC_VAPID_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
+// NOTE: Do NOT call webpush.setVapidDetails() at module level —
+// Next.js runs module-level code during build-time page collection,
+// and env vars are not available then → causes build failure.
+// Instead, call it inside the handler.
 
 export async function GET(request: Request) {
   // Secret check so random people can't spam-trigger this endpoint
@@ -21,6 +14,16 @@ export async function GET(request: Request) {
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Guard: ensure VAPID env vars are set before using web-push
+  const vapidEmail      = process.env.VAPID_EMAIL
+  const vapidPublicKey  = process.env.NEXT_PUBLIC_VAPID_KEY
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
+  if (!vapidEmail || !vapidPublicKey || !vapidPrivateKey) {
+    return NextResponse.json({ error: 'VAPID env vars not configured' }, { status: 500 })
+  }
+
+  webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey)
 
   const nowUtc = new Date()
 

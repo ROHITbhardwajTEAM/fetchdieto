@@ -590,11 +590,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* ── Alarm Sound Selector — responsive layout ───────── */
 /* Desktop: show grid cards, hide dropdown */
-.alarm-sound-mobile  { display: none; }
-.alarm-sound-desktop { display: grid; }
+.alarm-sound-mobile  { display: none !important; }
+.alarm-sound-desktop { display: grid !important; }
 
 /* Mobile ≤ 768px: show dropdown, hide grid cards */
 @media (max-width: 768px) {
-  .alarm-sound-mobile  { display: block; }
-  .alarm-sound-desktop { display: none; }
+  .alarm-sound-mobile  { display: block !important; }
+  .alarm-sound-desktop { display: none !important; }
+}
+
+/* ── Alarm sound mobile dropdown styling fix ─────────── */
+.alarm-sound-mobile select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  font-size: 16px; /* prevents iOS zoom */
 }

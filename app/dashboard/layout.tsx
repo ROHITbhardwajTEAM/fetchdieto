@@ -11,13 +11,15 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 
-// Convert base64 VAPID public key to Uint8Array (required by PushManager)
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  return new Uint8Array([...rawData].map((c) => c.charCodeAt(0)))
+// Sync reminders to Service Worker cache
+function syncRemindersToSW(reminders: { id: string; title: string; reminder_time: string; is_enabled: boolean }[]) {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active?.postMessage({ type: 'SYNC_REMINDERS', reminders })
+  }).catch(() => {})
 }
+
+
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -32,56 +34,71 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const supabase = createClient()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
   const userIdRef = useRef<string | null>(null)
-  const firedRef = useRef<Set<string>>(new Set()) // track fired reminders per minute
+  const firedRef = useRef<Set<string>>(new Set())
 
-  // ── Get user, check notification permission & register SW ────────────
+  // ── Register SW + silently subscribe to Web Push ────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) userIdRef.current = data.user.id
+      if (data.user) {
+        userIdRef.current = data.user.id
+        // Register SW then silently subscribe to push (no UI)
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/sw.js')
+            .then(async () => {
+              if (!('PushManager' in window)) return
+              const vapidKey = process.env.NEXT_PUBLIC_VAPID_KEY
+              if (!vapidKey) return
+              try {
+                // Request notification permission silently (first-time only)
+                let perm = Notification.permission
+                if (perm === 'default') {
+                  perm = await Notification.requestPermission()
+                }
+                if (perm !== 'granted') return
+
+                const reg = await navigator.serviceWorker.ready
+                const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4)
+                const b64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+                const raw = window.atob(b64)
+                const key = new Uint8Array([...raw].map(c => c.charCodeAt(0)))
+
+                const existing = await reg.pushManager.getSubscription()
+                const sub = existing ?? await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: key,
+                })
+
+                // Save to server (timezone so server knows what local time it is)
+                await fetch('/api/push/subscribe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: data.user.id,
+                    subscription: sub.toJSON(),
+                    tzOffsetMins: new Date().getTimezoneOffset(),
+                  }),
+                })
+              } catch { /* ignore — permission denied or push not supported */ }
+            })
+            .catch(() => {})
+        }
+      }
     })
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifPermission(Notification.permission)
-    }
-    // Register the Service Worker (needed for background push)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {/* ignore in dev */})
-    }
   }, [supabase])
 
-  // ── Subscribe to Web Push when notification permission is granted ─────
+  // ── Listen for SW alarm fire message → go to alarm page ─────────────
   useEffect(() => {
-    if (notifPermission !== 'granted') return
-    if (!userIdRef.current) return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-
-    const vapidKey = process.env.NEXT_PUBLIC_VAPID_KEY
-    if (!vapidKey) return
-
-    const subscribe = async () => {
-      try {
-        const reg = await navigator.serviceWorker.ready
-        // Check if already subscribed
-        const existing = await reg.pushManager.getSubscription()
-        const sub = existing ?? await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
-        })
-        // Save subscription + timezone to server
-        await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userIdRef.current,
-            subscription: sub.toJSON(),
-            tzOffsetMins: new Date().getTimezoneOffset(), // e.g. IST = -330
-          }),
-        })
-      } catch { /* ignore — user may have blocked */ }
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'ALARM_FIRE') {
+        router.push(`/alarm?id=${e.data.reminderId}&title=${encodeURIComponent(e.data.reminderTitle)}`)
+      }
     }
-    subscribe()
-  }, [notifPermission])
+    navigator.serviceWorker?.addEventListener('message', handler)
+    return () => navigator.serviceWorker?.removeEventListener('message', handler)
+  }, [router])
+
+
 
   // ── Unlock AudioContext on first user gesture ────────
   // Browsers block audio until the user interacts with the page.
@@ -105,134 +122,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [])
 
-  // ── Alarm sound using Web Audio API ──────────────────
-  const playAlarm = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
-      const ctx = new AudioCtx()
-      const soundId = localStorage.getItem('fetchdieto_alarm_sound') ?? 'rising_beeps'
 
-      if (soundId === 'rising_beeps') {
-        // 4 rising beeps
-        const beeps = [660, 770, 880, 1100]
-        beeps.forEach((freq, i) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'sine'
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.38)
-          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.38)
-          gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + i * 0.38 + 0.04)
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.38 + 0.28)
-          osc.start(ctx.currentTime + i * 0.38); osc.stop(ctx.currentTime + i * 0.38 + 0.30)
-        })
-        setTimeout(() => ctx.close(), 1920)
 
-      } else if (soundId === 'gentle_chime') {
-        // Soft descending chime tones
-        const tones = [1046, 880, 784, 659]
-        tones.forEach((freq, i) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'sine'
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.45)
-          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.45)
-          gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.45 + 0.05)
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.45 + 0.40)
-          osc.start(ctx.currentTime + i * 0.45); osc.stop(ctx.currentTime + i * 0.45 + 0.42)
-        })
-        setTimeout(() => ctx.close(), 2200)
-
-      } else if (soundId === 'alert_buzz') {
-        // Triple square-wave buzz
-        [0, 0.28, 0.56].forEach(t => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'square'
-          osc.frequency.setValueAtTime(440, ctx.currentTime + t)
-          gain.gain.setValueAtTime(0.25, ctx.currentTime + t)
-          gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.18)
-          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.20)
-        })
-        setTimeout(() => ctx.close(), 900)
-
-      } else if (soundId === 'melody') {
-        // Short happy melody: C E G A G E C
-        const notes = [523, 659, 784, 880, 784, 659, 523]
-        notes.forEach((freq, i) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'triangle'
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18)
-          gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18)
-          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.03)
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.16)
-          osc.start(ctx.currentTime + i * 0.18); osc.stop(ctx.currentTime + i * 0.18 + 0.17)
-        })
-        setTimeout(() => ctx.close(), 1600)
-
-      } else if (soundId === 'water_drop') {
-        // Single soft pluck
-        const osc = ctx.createOscillator(); const gain = ctx.createGain()
-        osc.connect(gain); gain.connect(ctx.destination)
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(1200, ctx.currentTime)
-        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.35)
-        gain.gain.setValueAtTime(0.5, ctx.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.42)
-        setTimeout(() => ctx.close(), 600)
-
-      } else if (soundId === 'classic_bell') {
-        // Bell: fundamental + harmonics
-        [[440, 0.5], [880, 0.3], [1320, 0.15]].forEach(([freq, vol]) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'sine'
-          osc.frequency.setValueAtTime(freq, ctx.currentTime)
-          gain.gain.setValueAtTime(vol as number, ctx.currentTime)
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5)
-          osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.52)
-        })
-        setTimeout(() => ctx.close(), 1800)
-
-      } else if (soundId === 'digital_pulse') {
-        // Fast sawtooth pulses
-        [0, 0.15, 0.30, 0.45, 0.60].forEach(t => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'sawtooth'
-          osc.frequency.setValueAtTime(660, ctx.currentTime + t)
-          gain.gain.setValueAtTime(0.2, ctx.currentTime + t)
-          gain.gain.setValueAtTime(0, ctx.currentTime + t + 0.09)
-          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.10)
-        })
-        setTimeout(() => ctx.close(), 900)
-
-      } else if (soundId === 'soft_ping') {
-        // Two gentle sine pings
-        [0, 0.5].forEach((t, i) => {
-          const osc = ctx.createOscillator(); const gain = ctx.createGain()
-          osc.connect(gain); gain.connect(ctx.destination)
-          osc.type = 'sine'
-          osc.frequency.setValueAtTime(i === 0 ? 880 : 1046, ctx.currentTime + t)
-          gain.gain.setValueAtTime(0.4, ctx.currentTime + t)
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.45)
-          osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.47)
-        })
-        setTimeout(() => ctx.close(), 1200)
-      }
-
-    } catch { /* audio not supported */ }
-  }
-
-  // ── Global reminder checker (works on every page) ────
+  // ── Fallback in-page reminder checker (when app is open/foreground) ──
   useEffect(() => {
     const checkReminders = async () => {
       if (!userIdRef.current) return
       const now = new Date()
       const minuteKey = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-      // ── Fetch reminders (with offline fallback to localStorage cache) ──
       type ReminderItem = { id: string; title: string; reminder_time: string; is_enabled: boolean }
       const CACHE_KEY = `fetchdieto_reminders_${userIdRef.current}`
       let reminders: ReminderItem[] = []
@@ -241,20 +139,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const res = await fetch(`/api/reminders?userId=${userIdRef.current}`)
         if (res.ok) {
           reminders = await res.json()
-          // ✅ Online: update the local cache for next offline use
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify(reminders)) } catch { /* storage full */ }
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(reminders)) } catch {}
+          // Sync to SW so it can fire alarms offline
+          syncRemindersToSW(reminders)
         }
       } catch {
-        // ❌ Offline: fall back to cached reminders
         try {
           const cached = localStorage.getItem(CACHE_KEY)
           if (cached) reminders = JSON.parse(cached)
-        } catch { /* ignore */ }
+        } catch {}
       }
 
       if (reminders.length === 0) return
 
-      // Reset fired set every minute
       const currentMinuteId = `${now.toDateString()}-${minuteKey}`
       if (!firedRef.current.has('__minute__' + currentMinuteId)) {
         firedRef.current = new Set(['__minute__' + currentMinuteId])
@@ -266,48 +163,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (due.length === 0) return
 
-      // 🔔 Play alarm sound once for all due reminders
-      playAlarm()
-
       due.forEach(r => {
         firedRef.current.add(r.id + currentMinuteId)
-
-        // In-app toast (stays for 12 s)
-        toast(`⏰ ${r.title}`, {
-          duration: 12000,
-          style: { fontWeight: 600, fontSize: '15px', padding: '14px 18px' },
-          icon: '🔔',
-        })
-
-        // Browser push notification (shows even if tab is in background)
-        if (notifPermission === 'granted') {
-          try {
-            new Notification('FetchDieto Reminder 🔔', {
-              body: r.title,
-              icon: '/favicon.ico',
-              tag: r.id,
-              renotify: true,
-            } as NotificationOptions)
-          } catch { /* ignore */ }
-        }
+        // Navigate to full-screen alarm page
+        router.push(`/alarm?id=${r.id}&title=${encodeURIComponent(r.title)}`)
       })
     }
 
-    // Align first check to the next :00 second of the minute
     const now = new Date()
     const msToNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 200
-
     let minuteInterval: ReturnType<typeof setInterval>
     const alignTimeout = setTimeout(() => {
-      checkReminders() // fire exactly at the minute boundary
+      checkReminders()
       minuteInterval = setInterval(checkReminders, 60_000)
     }, msToNextMinute)
 
-    return () => {
-      clearTimeout(alignTimeout)
-      clearInterval(minuteInterval)
-    }
-  }, [notifPermission])
+    return () => { clearTimeout(alignTimeout); clearInterval(minuteInterval) }
+  }, [router])
 
 
   const handleSignOut = async () => {

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Bell, Plus, Trash2, Clock } from 'lucide-react'
+import { Plus, Trash2, Clock, Wifi, WifiOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Reminder {
@@ -23,22 +23,46 @@ const ALARM_SOUNDS = [
   { id: 'soft_ping',    label: '🔵 Soft Ping',       desc: 'Two gentle pings' },
 ]
 
+// ─── Sync reminders to Service Worker ────────────────────────────────────────
+function syncToSW(reminders: Reminder[]) {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active?.postMessage({ type: 'SYNC_REMINDERS', reminders })
+  }).catch(() => {})
+}
+
+// ─── Register SW ──────────────────────────────────────────────────────────────
+async function registerSW(): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) return false
+  try {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    return true
+  } catch { return false }
+}
+
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', reminder_time: '' })
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
   const [alarmSound, setAlarmSound] = useState<string>('rising_beeps')
   const [isMobile, setIsMobile] = useState<boolean>(false)
+  const [swReady, setSwReady] = useState<boolean>(false)
+  const [isOnline, setIsOnline] = useState<boolean>(true)
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission>('default')
   const supabase = createClient()
+  const syncedRef = useRef(false)
 
   const loadReminders = useCallback(async (uid: string) => {
     const res = await fetch(`/api/reminders?userId=${uid}`)
-    if (res.ok) setReminders(await res.json())
+    if (res.ok) {
+      const data = await res.json()
+      setReminders(data)
+      syncToSW(data)  // sync to SW on load
+    }
   }, [])
 
-  // Detect mobile viewport — JS-driven so CSS cascade cannot interfere
+  // Detect mobile
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768)
     checkMobile()
@@ -46,18 +70,58 @@ export default function RemindersPage() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
+  // Online / offline
+  useEffect(() => {
+    const online = () => setIsOnline(true)
+    const offline = () => setIsOnline(false)
+    setIsOnline(navigator.onLine)
+    window.addEventListener('online', online)
+    window.addEventListener('offline', offline)
+    return () => { window.removeEventListener('online', online); window.removeEventListener('offline', offline) }
+  }, [])
+
+  // Register SW + request notification permission
+  useEffect(() => {
+    registerSW().then(ok => {
+      setSwReady(ok)
+      if (ok && 'Notification' in window) {
+        setNotifPerm(Notification.permission)
+        // Auto-request if not yet decided
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(p => setNotifPerm(p))
+        }
+      }
+    })
+
+    const saved = localStorage.getItem('fetchdieto_alarm_sound')
+    if (saved) setAlarmSound(saved)
+  }, [])
+
+  // Load user + reminders
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) { setUserId(data.user.id); loadReminders(data.user.id) }
     })
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifPermission(Notification.permission)
-    }
-    // Load saved alarm sound preference
-    const saved = localStorage.getItem('fetchdieto_alarm_sound')
-    if (saved) setAlarmSound(saved)
   }, [supabase, loadReminders])
 
+  // Sync to SW whenever reminders change
+  useEffect(() => {
+    if (reminders.length > 0 || syncedRef.current) {
+      syncToSW(reminders)
+      syncedRef.current = true
+    }
+  }, [reminders])
+
+  // Listen for alarm fires from SW (in case app is open)
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'ALARM_FIRE') {
+        window.location.href = `/alarm?id=${e.data.reminderId}&title=${encodeURIComponent(e.data.reminderTitle)}`
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', handler)
+    return () => navigator.serviceWorker?.removeEventListener('message', handler)
+  }, [])
 
   const selectAlarmSound = (id: string) => {
     setAlarmSound(id)
@@ -70,7 +134,7 @@ export default function RemindersPage() {
       const AudioCtx = window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
       const ctx = new AudioCtx()
       if (soundId === 'rising_beeps') {
-        [660, 770, 880, 1100].forEach((freq, i) => {
+        ;[660, 770, 880, 1100].forEach((freq, i) => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
           osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.38)
@@ -80,7 +144,7 @@ export default function RemindersPage() {
           osc.start(ctx.currentTime + i * 0.38); osc.stop(ctx.currentTime + i * 0.38 + 0.30)
         }); setTimeout(() => ctx.close(), 1920)
       } else if (soundId === 'gentle_chime') {
-        [1046, 880, 784, 659].forEach((freq, i) => {
+        ;[1046, 880, 784, 659].forEach((freq, i) => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
           osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.45)
@@ -90,7 +154,7 @@ export default function RemindersPage() {
           osc.start(ctx.currentTime + i * 0.45); osc.stop(ctx.currentTime + i * 0.45 + 0.42)
         }); setTimeout(() => ctx.close(), 2200)
       } else if (soundId === 'alert_buzz') {
-        [0, 0.28, 0.56].forEach(t => {
+        ;[0, 0.28, 0.56].forEach(t => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'square'
           osc.frequency.setValueAtTime(440, ctx.currentTime + t)
@@ -98,7 +162,7 @@ export default function RemindersPage() {
           osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.20)
         }); setTimeout(() => ctx.close(), 900)
       } else if (soundId === 'melody') {
-        [523, 659, 784, 880, 784, 659, 523].forEach((freq, i) => {
+        ;[523, 659, 784, 880, 784, 659, 523].forEach((freq, i) => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'triangle'
           osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18)
@@ -116,7 +180,7 @@ export default function RemindersPage() {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.42); setTimeout(() => ctx.close(), 600)
       } else if (soundId === 'classic_bell') {
-        [[440, 0.5], [880, 0.3], [1320, 0.15]].forEach(([freq, vol]) => {
+        ;[[440, 0.5], [880, 0.3], [1320, 0.15]].forEach(([freq, vol]) => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
           osc.frequency.setValueAtTime(freq, ctx.currentTime)
@@ -125,7 +189,7 @@ export default function RemindersPage() {
           osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.52)
         }); setTimeout(() => ctx.close(), 1800)
       } else if (soundId === 'digital_pulse') {
-        [0, 0.15, 0.30, 0.45, 0.60].forEach(t => {
+        ;[0, 0.15, 0.30, 0.45, 0.60].forEach(t => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth'
           osc.frequency.setValueAtTime(660, ctx.currentTime + t)
@@ -133,7 +197,7 @@ export default function RemindersPage() {
           osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.10)
         }); setTimeout(() => ctx.close(), 900)
       } else if (soundId === 'soft_ping') {
-        [0, 0.5].forEach((t, i) => {
+        ;[0, 0.5].forEach((t, i) => {
           const osc = ctx.createOscillator(); const gain = ctx.createGain()
           osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'
           osc.frequency.setValueAtTime(i === 0 ? 880 : 1046, ctx.currentTime + t)
@@ -144,63 +208,7 @@ export default function RemindersPage() {
       }
     } catch { /* ignore */ }
   }
-  const requestNotifications = async () => {
-    if (!('Notification' in window)) return
-    const perm = await Notification.requestPermission()
-    setNotifPermission(perm)
-    if (perm === 'granted') {
-      toast.success('🔔 Notifications enabled! Alarms will fire even on your lock screen.')
-      // Immediately subscribe this device to Web Push
-      if ('serviceWorker' in navigator && 'PushManager' in window && userId) {
-        try {
-          const reg = await navigator.serviceWorker.ready
-          const vapidKey = process.env.NEXT_PUBLIC_VAPID_KEY
-          if (vapidKey) {
-            const existing = await reg.pushManager.getSubscription()
-            const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4)
-            const b64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/')
-            const raw = window.atob(b64)
-            const key = new Uint8Array([...raw].map(c => c.charCodeAt(0)))
-            const sub = existing ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
-            await fetch('/api/push/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId,
-                subscription: sub.toJSON(),
-                tzOffsetMins: new Date().getTimezoneOffset(),
-              }),
-            })
-          }
-        } catch { /* ignore */ }
-      }
-    } else {
-      toast.error('Notifications blocked. Enable in browser settings.')
-    }
-  }
 
-  // Send a real server-side push to test lock-screen delivery
-  const testPushNotification = async () => {
-    if (!userId) return toast.error('Not logged in')
-    toast.loading('Sending test push…', { id: 'test-push' })
-    try {
-      const res = await fetch('/api/push/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
-      const data = await res.json()
-      if (res.ok && data.sent > 0) {
-        toast.success('📲 Test push sent! Check your lock screen / notification tray.', { id: 'test-push', duration: 6000 })
-      } else if (data.error?.includes('No push subscriptions')) {
-        toast.error('No subscription found — try toggling notifications off then on again.', { id: 'test-push', duration: 6000 })
-      } else {
-        toast.error(`Push failed: ${data.error ?? 'Unknown error'}`, { id: 'test-push', duration: 6000 })
-      }
-    } catch {
-      toast.error('Network error while sending test push.', { id: 'test-push' })
-    }
-  }
 
   const addReminder = async () => {
     if (!userId || !form.title || !form.reminder_time) return toast.error('Please fill all fields')
@@ -211,7 +219,11 @@ export default function RemindersPage() {
     })
     if (res.ok) {
       const reminder = await res.json()
-      setReminders(prev => [...prev, reminder])
+      setReminders(prev => {
+        const updated = [...prev, reminder]
+        syncToSW(updated)
+        return updated
+      })
       setForm({ title: '', reminder_time: '' })
       setShowModal(false)
       toast.success('Reminder set! ⏰')
@@ -224,12 +236,20 @@ export default function RemindersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_enabled: !r.is_enabled }),
     })
-    setReminders(prev => prev.map(rem => rem.id === r.id ? { ...rem, is_enabled: !rem.is_enabled } : rem))
+    setReminders(prev => {
+      const updated = prev.map(rem => rem.id === r.id ? { ...rem, is_enabled: !rem.is_enabled } : rem)
+      syncToSW(updated)
+      return updated
+    })
   }
 
   const deleteReminder = async (id: string) => {
     await fetch(`/api/reminders/${id}`, { method: 'DELETE' })
-    setReminders(prev => prev.filter(r => r.id !== id))
+    setReminders(prev => {
+      const updated = prev.filter(r => r.id !== id)
+      syncToSW(updated)
+      return updated
+    })
     toast.success('Reminder deleted')
   }
 
@@ -242,9 +262,13 @@ export default function RemindersPage() {
     { title: '😴 Sleep Time', time: '22:00' },
   ]
 
+  // Alarm readiness status
+  const alarmActive = swReady && notifPerm === 'granted'
+  const alarmPartial = swReady && notifPerm !== 'granted'
+
   return (
     <div style={{ width: '100%' }}>
-      {/* Header — CSS Grid: title left, button right */}
+      {/* Header */}
       <div className="page-header animate-fade-in">
         <div className="page-header-text">
           <h1>Reminders</h1>
@@ -255,14 +279,66 @@ export default function RemindersPage() {
         </button>
       </div>
 
+      {/* ── Alarm Status Card ── */}
+      <div className="glass-card animate-fade-in animate-fade-in-delay-1" style={{
+        padding: '16px 20px', marginBottom: 20, overflow: 'hidden',
+        border: alarmActive
+          ? '1px solid rgba(39,174,96,0.3)'
+          : alarmPartial
+          ? '1px solid rgba(245,158,11,0.3)'
+          : '1px solid rgba(239,68,68,0.3)',
+        background: alarmActive
+          ? 'rgba(39,174,96,0.05)'
+          : alarmPartial
+          ? 'rgba(245,158,11,0.05)'
+          : 'rgba(239,68,68,0.05)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+            background: alarmActive ? 'rgba(39,174,96,0.12)' : alarmPartial ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+          }}>
+            {alarmActive ? '🔔' : alarmPartial ? '⚠️' : '🔕'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontWeight: 700, fontSize: 14, color: '#1e1f2e', marginBottom: 2 }}>
+              {alarmActive
+                ? 'Alarms active — rings on lock screen'
+                : alarmPartial
+                ? 'Allow notifications to ring on lock screen'
+                : 'Enable notifications for lock screen alarms'}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {isOnline
+                ? <><Wifi size={11} color="#27ae60" /><span style={{ color: '#6b7280', fontSize: 11 }}>Online — synced</span></>
+                : <><WifiOff size={11} color="#ef4444" /><span style={{ color: '#6b7280', fontSize: 11 }}>Offline — alarms still work</span></>
+              }
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            {!alarmActive && (
+              <button
+                onClick={() => Notification.requestPermission().then(p => setNotifPerm(p))}
+                style={{
+                  fontSize: 12, padding: '7px 14px', borderRadius: 8, border: 'none',
+                  background: 'rgba(245,158,11,0.15)', color: '#d97706',
+                  cursor: 'pointer', fontWeight: 600, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
+                }}
+              >
+                Allow
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* ── Alarm Sound Selector Card ── */}
       <div className="glass-card animate-fade-in animate-fade-in-delay-1" style={{ padding: 28, marginBottom: 20 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#2D3561' }}>🔊 Alarm Sound</h2>
         <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 18 }}>Choose the sound that plays when a reminder fires.</p>
 
-        {/* ── JS-driven responsive: dropdown on mobile, grid on desktop ── */}
         {isMobile ? (
-          /* MOBILE: dropdown + preview button */
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
             <select
               value={alarmSound}
@@ -293,7 +369,6 @@ export default function RemindersPage() {
             >▶</button>
           </div>
         ) : (
-          /* DESKTOP: grid cards */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {ALARM_SOUNDS.map(s => (
               <div key={s.id}
@@ -327,49 +402,6 @@ export default function RemindersPage() {
           </div>
         )}
       </div>
-
-      {/* Notification banner — shown when permission NOT yet granted */}
-      {notifPermission !== 'granted' && (
-        <div className="glass-card animate-fade-in animate-fade-in-delay-1"
-          style={{ padding: '14px 20px', marginBottom: 20, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.05)', overflow: 'hidden' }}>
-          <div className="notif-banner">
-            <Bell size={20} color="#f59e0b" style={{ flexShrink: 0 }} />
-            <div className="notif-banner-text">
-              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Enable push notifications</p>
-              <p style={{ color: '#6b7280', fontSize: 12 }}>Get alerted even when your phone is locked 🔒</p>
-            </div>
-            <button id="btn-enable-notifications" className="btn-primary" onClick={requestNotifications}
-              style={{ fontSize: 13, flexShrink: 0, padding: '8px 16px' }}>
-              Enable
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Push active banner — shown when permission IS granted, with test button */}
-      {notifPermission === 'granted' && (
-        <div className="glass-card animate-fade-in animate-fade-in-delay-1"
-          style={{ padding: '14px 20px', marginBottom: 20, border: '1px solid rgba(39,174,96,0.25)', background: 'rgba(39,174,96,0.05)', overflow: 'hidden' }}>
-          <div className="notif-banner">
-            <span style={{ fontSize: 20, flexShrink: 0 }}>🔔</span>
-            <div className="notif-banner-text">
-              <p style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, color: '#1e1f2e' }}>Lock screen alarms active</p>
-              <p style={{ color: '#6b7280', fontSize: 12 }}>Your reminders will fire even when app is closed</p>
-            </div>
-            <button
-              id="btn-test-push"
-              onClick={testPushNotification}
-              style={{
-                fontSize: 12, flexShrink: 0, padding: '7px 12px', borderRadius: 8, border: 'none',
-                background: 'rgba(39,174,96,0.12)', color: '#219653', cursor: 'pointer',
-                fontWeight: 600, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
-              }}
-            >
-              📲 Test Now
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Reminders list */}
       <div className="glass-card reminders-list-card animate-fade-in animate-fade-in-delay-2" style={{ padding: 28 }}>

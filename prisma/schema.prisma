@@ -94,3 +94,13 @@ model PushSubscription {
 
   @@map("push_subscriptions")
 }
+
+model AdminCredential {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  password_hash String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@map("admin_credentials")
+}

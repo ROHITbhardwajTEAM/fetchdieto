@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import {
   Users, Flame, Dumbbell, Droplets, Bell, ChevronDown, ChevronUp,
   TrendingUp, Calendar, Activity, Target, CheckCircle2, Clock,
-  Search, Download, RefreshCw, BarChart3, User, Utensils
+  Search, Download, RefreshCw, BarChart3, User, Utensils, FileSpreadsheet
 } from 'lucide-react'
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -135,6 +136,85 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
   )
 }
 
+/* ─── Export single user to Excel ─────────────────────────── */
+function exportUserExcel(user: UserReport) {
+  const wb = XLSX.utils.book_new()
+
+  // Sheet 1 — Profile & Summary
+  const profileData = [
+    ['Field', 'Value'],
+    ['Name', user.name],
+    ['Email', user.email],
+    ['Joined', fmtDate(user.joined)],
+    ['Weight (kg)', user.profile.weight ?? '—'],
+    ['Height (cm)', user.profile.height ?? '—'],
+    ['Age', user.profile.age ?? '—'],
+    ['Gender', user.profile.gender ?? '—'],
+    ['Activity Level', user.profile.activity_level ?? '—'],
+    ['Goal', goalLabel(user.profile.goal)],
+    ['Calorie Target', user.profile.calorie_target ?? '—'],
+    ['Protein Target (g)', user.profile.protein_target ?? '—'],
+    ['Carbs Target (g)', user.profile.carb_target ?? '—'],
+    ['Fat Target (g)', user.profile.fat_target ?? '—'],
+    [],
+    ['ACTIVITY SUMMARY', ''],
+    ['Total Meals Logged', user.stats.totalMeals],
+    ['Meals Completed', user.stats.completedMeals],
+    ['Meals Pending', user.stats.pendingMeals],
+    ['Active Days', user.stats.activeDays],
+    ['Total Calories Logged (kcal)', user.stats.totalCaloriesLogged],
+    ['Total Protein Logged (g)', user.stats.totalProteinLogged],
+    ['Total Carbs Logged (g)', user.stats.totalCarbsLogged],
+    ['Total Fat Logged (g)', user.stats.totalFatLogged],
+    ['Avg Calories / Day (kcal)', user.stats.avgCaloriesPerDay],
+    ['Avg Water / Day (ml)', user.stats.avgWaterPerDay],
+    ['Total Reminders', user.stats.remindersCount],
+    ['Active Reminders', user.stats.activeReminders],
+  ]
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(profileData), 'Profile & Summary')
+
+  // Sheet 2 — All Meals
+  const mealHeaders = ['Date', 'Meal Name', 'Time', 'Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Status', 'Added At']
+  const mealRows = user.meals.map(m => [
+    m.date,
+    m.meal_name,
+    m.time ?? '—',
+    m.calories ?? 0,
+    m.protein ?? 0,
+    m.carbs ?? 0,
+    m.fat ?? 0,
+    m.is_completed ? 'Completed' : 'Pending',
+    new Date(m.created_at).toLocaleString('en-IN'),
+  ])
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([mealHeaders, ...mealRows]), 'Meals')
+
+  // Sheet 3 — Daily Logs
+  const logHeaders = ['Date', 'Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Water (ml)']
+  const logRows = user.daily_logs.map(l => [
+    l.date, l.calories, Math.round(l.protein), Math.round(l.carbs), Math.round(l.fat), l.water_ml
+  ])
+  // Add totals row
+  const logTotals = [
+    'TOTAL',
+    user.stats.totalCaloriesLogged,
+    user.stats.totalProteinLogged,
+    user.stats.totalCarbsLogged,
+    user.stats.totalFatLogged,
+    user.daily_logs.reduce((s, l) => s + l.water_ml, 0),
+  ]
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([logHeaders, ...logRows, [], logTotals]), 'Daily Logs')
+
+  // Sheet 4 — Reminders
+  const reminderHeaders = ['Title', 'Time', 'Status', 'Created At']
+  const reminderRows = user.reminders.map(r => [
+    r.title, r.reminder_time, r.is_enabled ? 'Active' : 'Off', fmtDate(r.created_at)
+  ])
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([reminderHeaders, ...reminderRows]), 'Reminders')
+
+  const safeName = user.name.replace(/[^a-z0-9]/gi, '_')
+  XLSX.writeFile(wb, `${safeName}_report_${new Date().toISOString().split('T')[0]}.xlsx`)
+}
+
 /* ─── UserRow ──────────────────────────────────────────────── */
 function UserRow({ user }: { user: UserReport }) {
   const [expanded, setExpanded] = useState(false)
@@ -151,17 +231,18 @@ function UserRow({ user }: { user: UserReport }) {
     }}>
       {/* Header row */}
       <div
-        onClick={() => setExpanded(e => !e)}
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr auto auto auto auto',
+          gridTemplateColumns: '1fr auto auto auto auto auto',
           alignItems: 'center',
           gap: 16,
           padding: '16px 20px',
-          cursor: 'pointer',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div
+          onClick={() => setExpanded(e => !e)}
+          style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, cursor: 'pointer' }}
+        >
           <div style={{
             width: 44, height: 44, borderRadius: 12, background: color,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -178,24 +259,45 @@ function UserRow({ user }: { user: UserReport }) {
             </div>
           </div>
         </div>
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#2D3561' }}>{fmtDate(user.joined)}</div>
           <div style={{ fontSize: 11, color: '#A0A4BF' }}>Joined</div>
         </div>
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#E8742A' }}>{s.totalMeals}</div>
           <div style={{ fontSize: 11, color: '#A0A4BF' }}>Meals</div>
         </div>
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#9B59B6' }}>{s.activeDays}</div>
           <div style={{ fontSize: 11, color: '#A0A4BF' }}>Active Days</div>
         </div>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: expanded ? 'rgba(232,116,42,0.1)' : '#f5f5f5',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: expanded ? '#E8742A' : '#6B6F8A', transition: 'all 0.2s'
-        }}>
+        {/* ── Per-user Excel Export button ── */}
+        <button
+          onClick={() => exportUserExcel(user)}
+          title={`Export ${user.name}'s full report to Excel`}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '7px 12px', borderRadius: 8,
+            border: '1.5px solid rgba(39,174,96,0.35)',
+            background: 'rgba(39,174,96,0.08)',
+            color: '#27AE60', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            whiteSpace: 'nowrap', transition: 'all 0.15s',
+          }}
+          onMouseOver={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(39,174,96,0.18)' }}
+          onMouseOut={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(39,174,96,0.08)' }}
+        >
+          <FileSpreadsheet size={13} />
+          Excel
+        </button>
+        <div
+          onClick={() => setExpanded(e => !e)}
+          style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: expanded ? 'rgba(232,116,42,0.1)' : '#f5f5f5',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: expanded ? '#E8742A' : '#6B6F8A', transition: 'all 0.2s', cursor: 'pointer'
+          }}>
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
       </div>
@@ -474,32 +576,56 @@ export default function AdminPage() {
   const profileComplete = users.filter(u => u.profile.isComplete).length
   const pushEnabled = users.filter(u => u.stats.hasPushNotifications).length
 
-  const exportCSV = () => {
-    const rows = [
-      ['Name', 'Email', 'Joined', 'Weight', 'Height', 'Age', 'Gender', 'Goal',
-       'Calorie Target', 'Total Meals', 'Completed Meals', 'Active Days',
-       'Total Calories', 'Total Protein (g)', 'Total Carbs (g)', 'Total Fat (g)',
-       'Avg Cal/Day', 'Avg Water/Day (ml)', 'Reminders', 'Push Notifications'],
-      ...users.map(u => [
-        u.name, u.email, fmtDate(u.joined),
-        u.profile.weight ?? '', u.profile.height ?? '', u.profile.age ?? '',
-        u.profile.gender ?? '', u.profile.goal ?? '',
-        u.profile.calorie_target ?? '',
-        u.stats.totalMeals, u.stats.completedMeals, u.stats.activeDays,
-        u.stats.totalCaloriesLogged, u.stats.totalProteinLogged,
-        u.stats.totalCarbsLogged, u.stats.totalFatLogged,
-        u.stats.avgCaloriesPerDay, u.stats.avgWaterPerDay,
-        u.stats.remindersCount, u.stats.hasPushNotifications ? 'Yes' : 'No'
-      ])
+  // Export ALL users — one row per user in a summary sheet
+  const exportAllExcel = () => {
+    const wb = XLSX.utils.book_new()
+
+    // Sheet 1: All Users Summary
+    const summaryHeaders = [
+      'Name', 'Email', 'Joined', 'Weight (kg)', 'Height (cm)', 'Age', 'Gender',
+      'Goal', 'Calorie Target', 'Protein Target (g)', 'Carbs Target (g)', 'Fat Target (g)',
+      'Total Meals', 'Completed Meals', 'Pending Meals', 'Active Days',
+      'Total Calories (kcal)', 'Total Protein (g)', 'Total Carbs (g)', 'Total Fat (g)',
+      'Avg Cal/Day', 'Avg Water/Day (ml)', 'Total Reminders', 'Active Reminders', 'Push Notifications'
     ]
-    const csv = rows.map(r => r.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `nutritrack-users-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const summaryRows = users.map(u => [
+      u.name, u.email, fmtDate(u.joined),
+      u.profile.weight ?? '', u.profile.height ?? '', u.profile.age ?? '',
+      u.profile.gender ?? '', goalLabel(u.profile.goal),
+      u.profile.calorie_target ?? '', u.profile.protein_target ?? '',
+      u.profile.carb_target ?? '', u.profile.fat_target ?? '',
+      u.stats.totalMeals, u.stats.completedMeals, u.stats.pendingMeals, u.stats.activeDays,
+      u.stats.totalCaloriesLogged, u.stats.totalProteinLogged,
+      u.stats.totalCarbsLogged, u.stats.totalFatLogged,
+      u.stats.avgCaloriesPerDay, u.stats.avgWaterPerDay,
+      u.stats.remindersCount, u.stats.activeReminders,
+      u.stats.hasPushNotifications ? 'Yes' : 'No'
+    ])
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]), 'All Users Summary')
+
+    // Sheet 2: All Meals (every meal from every user)
+    const allMealHeaders = ['User Name', 'Email', 'Date', 'Meal Name', 'Time', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Status', 'Added At']
+    const allMealRows = users.flatMap(u =>
+      u.meals.map(m => [
+        u.name, u.email, m.date, m.meal_name, m.time ?? '—',
+        m.calories ?? 0, m.protein ?? 0, m.carbs ?? 0, m.fat ?? 0,
+        m.is_completed ? 'Completed' : 'Pending',
+        new Date(m.created_at).toLocaleString('en-IN')
+      ])
+    )
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([allMealHeaders, ...allMealRows]), 'All Meals')
+
+    // Sheet 3: All Daily Logs
+    const allLogHeaders = ['User Name', 'Email', 'Date', 'Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Water (ml)']
+    const allLogRows = users.flatMap(u =>
+      u.daily_logs.map(l => [
+        u.name, u.email, l.date, l.calories,
+        Math.round(l.protein), Math.round(l.carbs), Math.round(l.fat), l.water_ml
+      ])
+    )
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([allLogHeaders, ...allLogRows]), 'All Daily Logs')
+
+    XLSX.writeFile(wb, `FetchDieto_AllUsers_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   if (loading) {
@@ -545,9 +671,9 @@ export default function AdminPage() {
             <RefreshCw size={14} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
             Refresh
           </button>
-          <button onClick={exportCSV} className="btn-primary" style={{ gap: 6, padding: '8px 14px', fontSize: 13 }}>
-            <Download size={14} />
-            Export CSV
+          <button onClick={exportAllExcel} className="btn-primary" style={{ gap: 6, padding: '8px 14px', fontSize: 13, display: 'flex', alignItems: 'center' }}>
+            <FileSpreadsheet size={14} />
+            Export All (Excel)
           </button>
         </div>
       </div>
